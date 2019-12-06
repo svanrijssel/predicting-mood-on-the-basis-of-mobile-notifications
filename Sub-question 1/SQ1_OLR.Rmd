@@ -1,0 +1,151 @@
+---
+title: "SQ1_OLR_thesis"
+author: "Stijn van Rijssel"
+date: "9-11-2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preparing
+
+```{r Loading librarys}
+library(MASS)
+library(mice)
+library(brant)
+library(ordinal)
+library(dplyr)
+library(car)
+library(oglmx)
+library(nnet)
+library(mctest)
+```
+
+```{r Loading data}
+setwd("~/Documents/Master Data Science and Society/Block 3/thesis/code/thesis_Code/")
+mood <- read.csv("mood_imputed_median.csv")
+```
+
+## Linear Regression for VIF
+
+```{r Copy dataset}
+lmMood <- mood
+lmMood$anxious <- as.numeric(lmMood$anxious) 
+```
+
+```{r Fit Linear Regression}
+lmVIF <- lm(anxious ~ day_time_window + average_TimeUse + 
+                                    bulk + messaging + socialnetworking + 
+                                    otherapp, data = lmMood)
+```
+
+```{r Perform VIF}
+ coll_vif <- vif(lmVIF)
+ coll_vif 
+```
+
+
+## Brant
+
+```{r Change data types}
+#sapply(mood, class)
+
+mood$bulk <- as.numeric(mood$bulk)
+
+mood$anxious <- factor(mood$anxious, ordered = TRUE, 
+                                    levels = c("0", "1", "2", "3", "4", "5"))
+mood$bored <- factor(mood$bored, ordered = TRUE, 
+                                    levels = c("0", "1", "2", "3", "4", "5"))
+mood$content <- factor(mood$content, ordered = TRUE, 
+                                    levels = c("0", "1", "2", "3", "4", "5"))
+mood$cheerful <- factor(mood$cheerful, ordered = TRUE, 
+                                    levels = c("0", "1", "2", "3", "4", "5"))
+```
+
+```{r Ordinal Logistic Regression for Brant}
+olrBrantAnxious <- polr(anxious ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                          otherapp,data = mood, Hess=TRUE)
+olrBrantBored <- polr(bored ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                          otherapp,data = mood, Hess=TRUE)
+olrBrantContent <- polr(content ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                          otherapp,data = mood, Hess=TRUE)
+olrBrantCheerful <- polr(cheerful ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                          otherapp,data = mood, Hess=TRUE)
+```
+
+```{r Perform Brant test}
+brant(olrBrantAnxious)
+brant(olrBrantBored)
+brant(olrBrantContent)
+brant(olrBrantCheerful)
+```
+
+## Ordinal Logistic Regression
+
+```{r OLR}
+olrBored <- polr(bored ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                          otherapp,data = mood, Hess=TRUE)
+```
+
+```{r Adding p-values}
+summary_olrBored <- coef(summary(olrBored))
+pval <- pnorm(abs(summary_olrBored[, "t value"]),lower.tail = FALSE)* 2
+summary_olrBored <- cbind(summary_olrBored, "p value" = round(pval,3))
+summary_olrBored
+```
+
+
+## Generalized Ordered Logit Model
+
+```{r Targets to numeric}
+mlr_Mood <- mood
+mlr_Mood$bored <- NULL
+mlr_Mood$anxious <- as.factor(mlr_Mood$anxious)
+mlr_Mood$content <- as.factor(mlr_Mood$content)
+mlr_Mood$cheerful <- as.factor(mlr_Mood$cheerful)
+```
+
+```{r Multinomial Logistic Regression - Anxious}
+mlrAnxious <- multinom(anxious ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                         otherapp,data = mlr_Mood)
+
+# Calculate z-values
+zvalues_Anxious <- summary(mlrAnxious)$coefficients / summary(mlrAnxious)$standard.errors
+
+# Calculate p-values
+pvalues_Anxious <- pnorm(abs(zvalues_Anxious), lower.tail=FALSE)*2
+
+# Show p-values
+pvalues_Anxious
+```
+
+```{r Multinomial Logistic Regression - Content}
+mlrContent <- multinom(content ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                         otherapp,data = mlr_Mood)
+
+# Calculate z-values
+zvalues_Content <- summary(mlrContent)$coefficients / summary(mlrContent)$standard.errors
+
+# Calculate p-values
+pvalues_Content <- pnorm(abs(zvalues_Content), lower.tail=FALSE)*2
+
+# Show p-values
+pvalues_Content
+```
+
+```{r Multinomial Logistic Regression - Cheerful}
+mlrCheerful <- multinom(cheerful ~ day_time_window + average_TimeUse + bulk + messaging + socialnetworking +
+                         otherapp,data = mlr_Mood)
+
+# Calculate z-values
+zvalues_Cheerful <- summary(mlrCheerful)$coefficients / summary(mlrCheerful)$standard.errors
+
+# Calculate p-values
+pvalues_Cheerful <- pnorm(abs(zvalues_Cheerful), lower.tail=FALSE)*2
+
+# Show p-values
+pvalues_Cheerful
+```
+
